@@ -26,11 +26,11 @@ module Xaction
     end
 
     def transaction_id
-      @transaction_id ||= [requested_transaction_id, generate_transaction_id].compact.join(":")
+      @transaction_id ||= generate_transaction_id
     end
 
-    def requested_transaction_id
-      @requested_transaction_id ||= @env[TRANSACTION_HEADER]
+    def forwarded_transaction_id
+      @forwarded_transaction_id ||= @env[TRANSACTION_HEADER] || "-"
     end
 
     def generate_transaction_id
@@ -61,11 +61,22 @@ module Xaction
     end
 
     def debug(message)
-      logger.debug("#{@helper.transaction_id}: #{message}")
+      logger.debug("#{@helper.forwarded_transaction_id} #{message}")
     end
 
     def logger
-      @logger ||= Logger.new("/tmp/xaction.log")
+      @logger ||= begin
+        logger = Logger.new("/tmp/xaction.log")
+        logger.progname = @helper.transaction_id
+        logger.formatter = Formatter.new
+        logger
+      end
+    end
+
+    class Formatter < ::Logger::Formatter
+      def call(severity, time, progname, msg)
+        "%s %s %s\n" % [time.iso8601, progname, msg]
+      end
     end
   end
 
