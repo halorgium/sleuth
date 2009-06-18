@@ -6,12 +6,12 @@ module Xaction
   HELPER_KEY = "xaction.helper".freeze
 
   class Rack
-    def initialize(app)
-      @app = app
+    def initialize(app, identifier)
+      @app, @identifier = app, identifier
     end
 
     def call(env)
-      helper = Helper.new(env)
+      helper = Helper.new(@identifier, env)
       env[HELPER_KEY] = helper
       helper.logger.debug "Started request"
       response = @app.call(env)
@@ -21,8 +21,8 @@ module Xaction
   end
 
   class Helper
-    def initialize(env)
-      @env = env
+    def initialize(identifier, env)
+      @identifier, @env = identifier, env
     end
 
     def transaction_id
@@ -43,7 +43,7 @@ module Xaction
         rand(0x1000000),
         rand(0x1000000),
       ]
-      "%04x%04x%04x%04x%04x%06x%06x" % values
+      "#{@identifier}-%04x%04x%04x%04x%04x%06x%06x" % values
     end
 
     def logger

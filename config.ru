@@ -1,8 +1,6 @@
 require 'rubygems'
 require File.dirname(__FILE__) + '/lib/xaction'
 
-use Xaction::Rack
-
 require File.dirname(__FILE__) + '/layers'
 
 map "http://layer1.example.org/" do

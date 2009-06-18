@@ -2,6 +2,7 @@ require 'sinatra/base'
 require 'pp'
 
 class Layer1 < Sinatra::Base
+  use Xaction::Rack, "layer1"
   helpers Xaction::SinatraHelpers
 
   get '/' do
@@ -11,6 +12,7 @@ class Layer1 < Sinatra::Base
 end
 
 class Layer2 < Sinatra::Base
+  use Xaction::Rack, "layer2"
   helpers Xaction::SinatraHelpers
 
   get '/' do
@@ -20,6 +22,7 @@ class Layer2 < Sinatra::Base
 end
 
 class Layer3 < Sinatra::Base
+  use Xaction::Rack, "layer3"
   helpers Xaction::SinatraHelpers
 
   get '/' do
