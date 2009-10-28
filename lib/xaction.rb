@@ -1,118 +1,122 @@
 require 'rack/client'
-require 'logger'
+
+require 'active_support/core_ext/module/delegation'
+require 'active_support/core_ext/class/attribute_accessors'
+require 'active_support/notifications'
+require 'active_support/buffered_logger'
 
 module Xaction
-  TRANSACTION_HEADER = "HTTP_X_TRANSACTION_ID".freeze
-  HELPER_KEY = "xaction.helper".freeze
+  TRANSACTION_NAME_HEADER = "X_TRANSACTION_NAME"
+  TRANSACTION_ID_HEADER   = "X_TRANSACTION_ID"
 
-  class Rack
-    def initialize(app, identifier)
-      @app, @identifier = app, identifier
-    end
+  mattr_reader :current_names, :parent_ids, :parent_names
+  @@current_names, @@parent_ids, @@parent_names = {}, {}, {}
 
-    def call(env)
-      helper = Helper.new(@identifier, env)
-      env[HELPER_KEY] = helper
-      helper.logger.debug "Started request"
-      response = @app.call(env)
-      helper.logger.debug "Finished request"
-      response
-    end
-  end
-
-  class Helper
-    def initialize(identifier, env)
-      @identifier, @env = identifier, env
-    end
-
-    def transaction_id
-      @transaction_id ||= generate_transaction_id
-    end
-
-    def forwarded_transaction_id
-      @forwarded_transaction_id ||= @env[TRANSACTION_HEADER] || "-"
-    end
-
-    def generate_transaction_id
-      values = [
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x1000000),
-        rand(0x1000000),
-      ]
-      "#{@identifier}-%04x%04x%04x%04x%04x%06x%06x" % values
-    end
+  class << self
+    delegate :head, :get, :post, :put, :delete, :to => :http
 
     def logger
-      @logger ||= MyLogger.new(self)
+      @logger ||= ActiveSupport::BufferedLogger.new("/tmp/xaction.log")
     end
 
     def http
-      @http ||= HTTPClient.new(self)
-    end
-  end
-
-  class MyLogger
-    def initialize(helper)
-      @helper = helper
+      @http ||= Rack::Client.new {
+        use OutboundHeader
+      }
     end
 
-    def debug(message)
-      logger.debug("#{@helper.forwarded_transaction_id} #{message}")
-    end
-
-    def logger
-      @logger ||= begin
-        logger = Logger.new("/tmp/xaction.log")
-        logger.progname = @helper.transaction_id
-        logger.formatter = Formatter.new
-        logger
+    def instrument(data = {})
+      payload = {
+        :current_name => current_name,
+        :parent_id => parent_id,
+        :parent_name => parent_name,
+        :data => data
+      }
+      ActiveSupport::Notifications.instrument(:xaction, payload) do
+        yield
       end
     end
 
-    class Formatter < ::Logger::Formatter
-      def call(severity, time, progname, msg)
-        "%s %s %s\n" % [time.iso8601, progname, msg]
+    def transaction(current_name, parent_name, parent_id)
+      ActiveSupport::Notifications.transaction do
+        @@current_names[current_id] = current_name
+        @@parent_names[current_id]  = parent_name
+        @@parent_ids[current_id]    = parent_id
+
+        instrument do
+          yield
+        end
+      end
+    end
+
+    def current_id
+      ActiveSupport::Notifications.transaction_id
+    end
+
+    def current_name
+      current_names[current_id]
+    end
+
+    def parent_id
+      parent_ids[current_id]
+    end
+
+    def parent_name
+      parent_names[current_id]
+    end
+
+    def watch
+      ActiveSupport::Notifications.subscribe('xaction') do |*args|
+        event        = ActiveSupport::Notifications::Event.new(*args)
+
+        timestamp = event.time.utc.iso8601
+        current_id   = event.transaction_id
+        current_name = event.payload[:current_name]
+        parent_name  = event.payload[:parent_name]
+        parent_id    = event.payload[:parent_id]
+        data         = event.payload[:data]
+
+        parts = [timestamp, event.time.usec, current_name, current_id,
+                 parent_name, parent_id, event.duration, data.inspect]
+        message = "%s%06d %s-%s %s-%s %0.4f -- %s" % parts
+
+        logger.debug(message)
       end
     end
   end
 
-  class HTTPClient
-    def initialize(helper)
-      @helper = helper
+  class Middleware
+    def initialize(app, name)
+      @app, @name = app, name
     end
 
-    def get(*args)
-      @helper.logger.debug "Making a GET request to #{args.inspect}"
-      client.get(*args)
-    end
+    def call(env)
+      parent_name = env["HTTP_#{TRANSACTION_NAME_HEADER}"]
+      parent_id   = env["HTTP_#{TRANSACTION_ID_HEADER}"]
 
-    def client
-      @client ||= begin
-        client = ::Rack::Client.new
-        client.use OutboundHeader, @helper.transaction_id
-        client
+      Xaction.transaction(@name, parent_name, parent_id) do
+        code, headers, body = @app.call(env)
+        headers[TRANSACTION_NAME_HEADER] = Xaction.current_name
+        headers[TRANSACTION_ID_HEADER]   = Xaction.current_id
+        [code, headers, body]
       end
     end
   end
 
   class OutboundHeader
-    def initialize(app, transaction_id)
-      @app, @transaction_id = app, transaction_id
+    def initialize(app)
+      @app = app
     end
 
     def call(env)
-      env[TRANSACTION_HEADER] = @transaction_id
-      @app.call(env)
-    end
-  end
-
-  module SinatraHelpers
-    def xaction_helper
-      env[HELPER_KEY]
+      request = Rack::Request.new(env)
+      Xaction.instrument(:http_request => {:method => request.request_method}) do
+        env["HTTP_#{TRANSACTION_NAME_HEADER}"] = Xaction.current_name
+        env["HTTP_#{TRANSACTION_ID_HEADER}"]   = Xaction.current_id
+        @app.call(env)
+      end
     end
   end
 end
+
+current_dir = File.expand_path(File.dirname(__FILE__) + '/xaction')

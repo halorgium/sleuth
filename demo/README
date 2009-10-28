@@ -1,0 +1,4 @@
+* Add layer[123].example.org to point to localhost
+* Start the rackup on tcp/9393
+* tail -F /tmp/xaction.log
+* curl http://layer1.example.org:9393/
