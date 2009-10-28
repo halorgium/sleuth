@@ -109,7 +109,7 @@ module Xaction
 
     def call(env)
       request = Rack::Request.new(env)
-      Xaction.instrument(:http_request => {:method => request.request_method}) do
+      Xaction.instrument(:http_request => "#{request.request_method} #{request.url}") do
         env["HTTP_#{TRANSACTION_NAME_HEADER}"] = Xaction.current_name
         env["HTTP_#{TRANSACTION_ID_HEADER}"]   = Xaction.current_id
         @app.call(env)
@@ -117,5 +117,3 @@ module Xaction
     end
   end
 end
-
-current_dir = File.expand_path(File.dirname(__FILE__) + '/xaction')
