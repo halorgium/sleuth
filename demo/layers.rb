@@ -1,8 +1,10 @@
 require 'sinatra/base'
 require 'pp'
 
+LOG_PATH = File.dirname(__FILE__) + '/logs'
+
 class Layer1 < Sinatra::Base
-  use Xaction::Middleware, "layer1"
+  use Xaction::Middleware, "layer1", LOG_PATH + '/1.log'
 
   get '/' do
     Xaction.instrument(:server => :layer_1) do
@@ -12,7 +14,7 @@ class Layer1 < Sinatra::Base
 end
 
 class Layer2 < Sinatra::Base
-  use Xaction::Middleware, "layer2"
+  use Xaction::Middleware, "layer2", LOG_PATH + '/2.log'
 
   get '/' do
     Xaction.instrument(:api => 1) do
@@ -35,11 +37,12 @@ class Layer2 < Sinatra::Base
 end
 
 class Layer3 < Sinatra::Base
-  use Xaction::Middleware, "layer3"
+  use Xaction::Middleware, "layer3", LOG_PATH + '/3.log'
 
   get '/' do
     Xaction.instrument(:server => :layer_3) do
-      "from layer 3: #{ActiveSupport::SecureRandom.hex(20)}"
+      sleep 1
+      "from layer 3: #{ActiveSupport::SecureRandom.hex(20)}\n"
     end
   end
 end

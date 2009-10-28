@@ -1,4 +1,5 @@
 * Add layer[123].example.org to point to localhost
 * Start the rackup on tcp/9393
-* tail -F /tmp/xaction.log
+* tail -F demo/log/{1,2,3}.log
+  You might like to use gtail on a Mac
 * curl http://layer1.example.org:9393/
