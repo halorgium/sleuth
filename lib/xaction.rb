@@ -6,11 +6,32 @@ require 'active_support/notifications'
 require 'active_support/buffered_logger'
 
 module Xaction
-  TRANSACTION_NAME_HEADER = "X_TRANSACTION_NAME"
-  TRANSACTION_ID_HEADER   = "X_TRANSACTION_ID"
+  TRANSACTION_HEADER = "X_TRANSACTION"
 
-  mattr_reader :current_names, :parent_ids, :parent_names, :loggers
-  @@current_names, @@parent_ids, @@parent_names, @@loggers = {}, {}, {}, {}
+  mattr_reader :transactions
+  @@transactions = {}
+
+  class Transaction < Struct.new(:name, :id, :log_path, :parent)
+    def log(event)
+      parts = [format_time(event.time), format_time(event.end), event.duration,
+               full_name, parent, event.payload.inspect]
+      message = "%s %s %0.4f %s %s -- %s" % parts
+
+      logger.debug(message)
+    end
+
+    def format_time(time)
+      "%s%06d" % [time.utc.iso8601, time.usec]
+    end
+
+    def logger
+      @logger ||= ActiveSupport::BufferedLogger.new(log_path)
+    end
+
+    def full_name
+      "#{name}-#{id}"
+    end
+  end
 
   class << self
     delegate :head, :get, :post, :put, :delete, :to => :http
@@ -21,28 +42,17 @@ module Xaction
       }
     end
 
-    def instrument(data = {})
-      payload = {
-        :current_name => current_name,
-        :parent_id => parent_id,
-        :parent_name => parent_name,
-        :data => data
-      }
+    def instrument(payload)
       ActiveSupport::Notifications.instrument(:xaction, payload) do
         yield
       end
     end
 
-    def transaction(current_name, parent_name, parent_id, logger)
+    def transaction(current_name, log_path, parent = nil)
       ActiveSupport::Notifications.transaction do
-        @@current_names[current_id] = current_name
-        @@parent_names[current_id]  = parent_name
-        @@parent_ids[current_id]    = parent_id
-        @@loggers[current_id]       = logger
+        transactions[current_id] = Transaction.new(current_name, current_id, log_path, parent)
 
-        instrument do
-          yield
-        end
+        yield
       end
     end
 
@@ -50,53 +60,33 @@ module Xaction
       ActiveSupport::Notifications.transaction_id
     end
 
-    def current_name
-      current_names[current_id]
-    end
-
-    def parent_id
-      parent_ids[current_id]
-    end
-
-    def parent_name
-      parent_names[current_id]
+    def current_transaction
+      transactions[current_id]
     end
 
     def watch
       ActiveSupport::Notifications.subscribe('xaction') do |*args|
         event        = ActiveSupport::Notifications::Event.new(*args)
-
-        timestamp = event.time.utc.iso8601
-        current_id   = event.transaction_id
-        current_name = event.payload[:current_name]
-        parent_name  = event.payload[:parent_name]
-        parent_id    = event.payload[:parent_id]
-        data         = event.payload[:data]
-
-        parts = [timestamp, event.time.usec, current_name, current_id,
-                 parent_name, parent_id, event.duration, data.inspect]
-        message = "%s%06d %s-%s %s-%s %0.4f -- %s" % parts
-
-        loggers[current_id].debug(message)
+        transaction  = transactions[event.transaction_id]
+        transaction.log(event)
       end
     end
   end
 
   class Middleware
     def initialize(app, name, log_path)
-      @app, @name = app, name
-      FileUtils.touch(log_path) unless File.exist?(log_path)
-      @logger = ActiveSupport::BufferedLogger.new(log_path)
+      @app, @name, @log_path = app, name, log_path
     end
 
     def call(env)
-      parent_name = env["HTTP_#{TRANSACTION_NAME_HEADER}"]
-      parent_id   = env["HTTP_#{TRANSACTION_ID_HEADER}"]
+      parent = env["HTTP_#{TRANSACTION_HEADER}"]
 
-      Xaction.transaction(@name, parent_name, parent_id, @logger) do
-        code, headers, body = @app.call(env)
-        headers[TRANSACTION_NAME_HEADER] = Xaction.current_name
-        headers[TRANSACTION_ID_HEADER]   = Xaction.current_id
+      Xaction.transaction(@name, @log_path, parent) do
+        request = Rack::Request.new(env)
+        code, headers, body = Xaction.instrument("Received #{request.request_method} #{request.url}") do
+          @app.call(env)
+        end
+        headers[TRANSACTION_HEADER] = Xaction.current_transaction.full_name
         [code, headers, body]
       end
     end
@@ -109,9 +99,8 @@ module Xaction
 
     def call(env)
       request = Rack::Request.new(env)
-      Xaction.instrument(:http_request => "#{request.request_method} #{request.url}") do
-        env["HTTP_#{TRANSACTION_NAME_HEADER}"] = Xaction.current_name
-        env["HTTP_#{TRANSACTION_ID_HEADER}"]   = Xaction.current_id
+      Xaction.instrument("Sending #{request.request_method} #{request.url}") do
+        env["HTTP_#{TRANSACTION_HEADER}"] = Xaction.current_transaction.full_name
         @app.call(env)
       end
     end
