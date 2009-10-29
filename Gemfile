@@ -1,6 +1,6 @@
 source "http://spork.in/xaction.gem/"
 
-gem "activesupport",  '=3.0.pre.xaction.0'
+gem "activesupport",  '=3.0.pre.xaction.1'
 gem "rack-client",    '=0.2.0.pre',         :require_as => 'rack/client'
 
 only :test do
