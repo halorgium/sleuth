@@ -11,28 +11,6 @@ module Xaction
   mattr_reader :transactions
   @@transactions = {}
 
-  class Transaction < Struct.new(:name, :id, :log_path, :parent)
-    def log(event)
-      parts = [format_time(event.time), format_time(event.end), event.duration,
-               full_name, parent, event.payload.inspect]
-      message = "%s %s %0.4f %s %s -- %s" % parts
-
-      logger.debug(message)
-    end
-
-    def format_time(time)
-      "%s%06d" % [time.utc.iso8601, time.usec]
-    end
-
-    def logger
-      @logger ||= ActiveSupport::BufferedLogger.new(log_path)
-    end
-
-    def full_name
-      "#{name}-#{id}"
-    end
-  end
-
   class << self
     delegate :head, :get, :post, :put, :delete, :to => :http
 
@@ -72,37 +50,9 @@ module Xaction
       end
     end
   end
-
-  class Middleware
-    def initialize(app, name, log_path)
-      @app, @name, @log_path = app, name, log_path
-    end
-
-    def call(env)
-      parent = env["HTTP_#{TRANSACTION_HEADER}"]
-
-      Xaction.transaction(@name, @log_path, parent) do
-        request = Rack::Request.new(env)
-        code, headers, body = Xaction.instrument("Received #{request.request_method} #{request.url}") do
-          @app.call(env)
-        end
-        headers[TRANSACTION_HEADER] = Xaction.current_transaction.full_name
-        [code, headers, body]
-      end
-    end
-  end
-
-  class OutboundHeader
-    def initialize(app)
-      @app = app
-    end
-
-    def call(env)
-      request = Rack::Request.new(env)
-      Xaction.instrument("Sending #{request.request_method} #{request.url}") do
-        env["HTTP_#{TRANSACTION_HEADER}"] = Xaction.current_transaction.full_name
-        @app.call(env)
-      end
-    end
-  end
 end
+
+current_dir = File.expand_path(File.dirname(__FILE__) + '/xaction')
+require current_dir + '/middleware'
+require current_dir + '/outbound_handler'
+require current_dir + '/transaction'
