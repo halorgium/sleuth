@@ -4,7 +4,7 @@ require 'pp'
 LOG_PATH = File.dirname(__FILE__) + '/logs'
 
 class Layer1 < Sinatra::Base
-  use Sleuth::Middleware, "layer1", LOG_PATH + '/1.log'
+  use Sleuth::Middleware, "layer1"
 
   get '/' do
     Sleuth.instrument(:server => :layer_1) do
@@ -14,7 +14,7 @@ class Layer1 < Sinatra::Base
 end
 
 class Layer2 < Sinatra::Base
-  use Sleuth::Middleware, "layer2", LOG_PATH + '/2.log'
+  use Sleuth::Middleware, "layer2"
 
   get '/' do
     Sleuth.instrument(:api => 1) do
@@ -37,7 +37,7 @@ class Layer2 < Sinatra::Base
 end
 
 class Layer3 < Sinatra::Base
-  use Sleuth::Middleware, "layer3", LOG_PATH + '/3.log'
+  use Sleuth::Middleware, "layer3"
 
   get '/' do
     Sleuth.instrument(:server => :layer_3) do

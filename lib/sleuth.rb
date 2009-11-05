@@ -8,9 +8,6 @@ require 'active_support/buffered_logger'
 module Sleuth
   TRANSACTION_HEADER = "X_SLEUTH_TRANSACTION"
 
-  mattr_reader :transactions
-  @@transactions = {}
-
   class << self
     delegate :head, :get, :post, :put, :delete, :to => :http
 
@@ -26,9 +23,9 @@ module Sleuth
       end
     end
 
-    def transaction(current_name, log_path, parent = nil)
+    def transaction(current_name, parent = nil)
       ActiveSupport::Notifications.transaction do
-        Transaction.create(current_name, current_id, log_path, parent)
+        Transaction.create(current_name, current_id, parent)
 
         yield
       end
@@ -39,19 +36,14 @@ module Sleuth
     end
 
     def current_transaction
-      transactions[current_id]
+      Transaction.running[current_id]
     end
 
-    def watch
+    def watch(log_path)
+      logger = ActiveSupport::BufferedLogger.new(log_path)
       ActiveSupport::Notifications.subscribe('sleuth') do |*args|
-        log_event(*args)
+        logger.debug(Transaction.message_for(*args))
       end
-    end
-
-    def log_event(*args)
-      event        = Event.new(*args)
-      transaction  = transactions[event.transaction_id]
-      transaction.log(event)
     end
   end
 end
