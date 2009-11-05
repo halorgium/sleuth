@@ -1,7 +1,7 @@
 require 'rake/gempackagetask'
 
 spec = Gem::Specification.new do |s|
-  s.name = "xaction"
+  s.name = "sleuth"
   s.version = "0.1.0.pre"
   s.summary = "Transaction logging middleware"
   s.author = "Tim Carey-Smith"
