@@ -1,7 +1,7 @@
-source "http://spork.in/xaction.gem/"
+source "http://gems.spork.in"
 
-gem "activesupport",  '=3.0.pre.xaction.1'
-gem "rack-client",    '=0.2.0.pre',         :require_as => 'rack/client'
+gem "halorgium-activesupport",  '=3.0.pre'
+gem "rack-client",              '=0.2.0',   :require_as => 'rack/client'
 
 only :test do
   gem "mongrel"
