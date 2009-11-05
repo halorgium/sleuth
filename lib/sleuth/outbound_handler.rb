@@ -1,4 +1,4 @@
-module Xaction
+module Sleuth
   class OutboundHeader
     def initialize(app)
       @app = app
@@ -6,8 +6,8 @@ module Xaction
 
     def call(env)
       request = Rack::Request.new(env)
-      Xaction.instrument("Sending #{request.request_method} #{request.url}") do
-        env["HTTP_#{TRANSACTION_HEADER}"] = Xaction.current_transaction.full_name
+      Sleuth.instrument("Sending #{request.request_method} #{request.url}") do
+        env["HTTP_#{TRANSACTION_HEADER}"] = Sleuth.current_transaction.full_name
         @app.call(env)
       end
     end

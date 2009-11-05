@@ -5,8 +5,8 @@ require 'active_support/core_ext/class/attribute_accessors'
 require 'active_support/notifications'
 require 'active_support/buffered_logger'
 
-module Xaction
-  TRANSACTION_HEADER = "X_TRANSACTION"
+module Sleuth
+  TRANSACTION_HEADER = "X_SLEUTH_TRANSACTION"
 
   mattr_reader :transactions
   @@transactions = {}
@@ -21,14 +21,14 @@ module Xaction
     end
 
     def instrument(payload)
-      ActiveSupport::Notifications.instrument(:xaction, payload) do
+      ActiveSupport::Notifications.instrument(:sleuth, payload) do
         yield
       end
     end
 
     def transaction(current_name, log_path, parent = nil)
       ActiveSupport::Notifications.transaction do
-        transactions[current_id] = Transaction.new(current_name, current_id, log_path, parent)
+        Transaction.create(current_name, current_id, log_path, parent)
 
         yield
       end
@@ -43,16 +43,20 @@ module Xaction
     end
 
     def watch
-      ActiveSupport::Notifications.subscribe('xaction') do |*args|
-        event        = ActiveSupport::Notifications::Event.new(*args)
-        transaction  = transactions[event.transaction_id]
-        transaction.log(event)
+      ActiveSupport::Notifications.subscribe('sleuth') do |*args|
+        log_event(*args)
       end
+    end
+
+    def log_event(*args)
+      event        = Event.new(*args)
+      transaction  = transactions[event.transaction_id]
+      transaction.log(event)
     end
   end
 end
 
-current_dir = File.expand_path(File.dirname(__FILE__) + '/xaction')
+current_dir = File.expand_path(File.dirname(__FILE__) + '/sleuth')
 require current_dir + '/middleware'
 require current_dir + '/outbound_handler'
 require current_dir + '/transaction'

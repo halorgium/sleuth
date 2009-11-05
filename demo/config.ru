@@ -2,7 +2,7 @@ Bundler.require_env
 
 Thread.abort_on_exception = true
 
-require File.dirname(__FILE__) + '/../lib/xaction'
+require File.dirname(__FILE__) + '/../lib/sleuth'
 
 require File.dirname(__FILE__) + '/layers'
 

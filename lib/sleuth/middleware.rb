@@ -1,4 +1,4 @@
-module Xaction
+module Sleuth
   class Middleware
     def initialize(app, name, log_path)
       @app, @name, @log_path = app, name, log_path
@@ -7,12 +7,12 @@ module Xaction
     def call(env)
       parent = env["HTTP_#{TRANSACTION_HEADER}"]
 
-      Xaction.transaction(@name, @log_path, parent) do
+      Sleuth.transaction(@name, @log_path, parent) do
         request = Rack::Request.new(env)
-        code, headers, body = Xaction.instrument("Received #{request.request_method} #{request.url}") do
+        code, headers, body = Sleuth.instrument("Received #{request.request_method} #{request.url}") do
           @app.call(env)
         end
-        headers[TRANSACTION_HEADER] = Xaction.current_transaction.full_name
+        headers[TRANSACTION_HEADER] = Sleuth.current_transaction.full_name
         [code, headers, body]
       end
     end
