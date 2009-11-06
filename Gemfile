@@ -1,3 +1,4 @@
+source "http://gemcutter.org"
 source "http://gems.spork.in"
 
 gem "halorgium-activesupport",  '=3.0.pre'
