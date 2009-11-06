@@ -5,8 +5,12 @@ require 'active_support/core_ext/class/attribute_accessors'
 require 'active_support/notifications'
 require 'active_support/buffered_logger'
 
+require 'time'
+
 module Sleuth
   TRANSACTION_HEADER = "X_SLEUTH_TRANSACTION"
+
+  class OutsideTransaction < StandardError; end
 
   class << self
     delegate :head, :get, :post, :put, :delete, :to => :http
@@ -18,14 +22,18 @@ module Sleuth
     end
 
     def instrument(payload)
-      ActiveSupport::Notifications.instrument(:sleuth, payload) do
-        yield
+      if inside_transaction?
+        ActiveSupport::Notifications.instrument(:sleuth, payload) do
+          yield
+        end
+      else
+        raise OutsideTransaction, "You are outside of a transaction"
       end
     end
 
     def transaction(current_name, parent = nil)
       ActiveSupport::Notifications.transaction do
-        Transaction.create(current_name, current_id, parent)
+        Transaction.create(current_name, parent)
 
         yield
       end
@@ -39,10 +47,29 @@ module Sleuth
       Transaction.running[current_id]
     end
 
+    def inside_transaction?
+      current_transaction
+    end
+
+    def thread(name)
+      parent = current_transaction && current_transaction.full_name
+      Thread.new {
+        transaction(name, parent) do
+          yield
+        end
+      }
+    end
+
     def watch(log_path)
       logger = ActiveSupport::BufferedLogger.new(log_path)
+      subscribe do |event|
+        logger.debug(Transaction.message_for(event))
+      end
+    end
+
+    def subscribe
       ActiveSupport::Notifications.subscribe('sleuth') do |*args|
-        logger.debug(Transaction.message_for(*args))
+        yield Event.new(*args)
       end
     end
   end

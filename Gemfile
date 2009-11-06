@@ -1,7 +1,7 @@
 source "http://gemcutter.org"
 source "http://gems.spork.in"
 
-gem "halorgium-activesupport",  '=3.0.pre'
+gem "halorgium-activesupport",  '=3.0.pre', :require_as => nil
 gem "rack-client",              '=0.2.0',   :require_as => 'rack/client'
 
 only :test do

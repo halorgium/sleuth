@@ -13,12 +13,12 @@ module Sleuth
     mattr_reader :running
     @@running = {}
 
-    def self.create(name, id, parent)
+    def self.create(name, parent)
+      id = Sleuth.current_id
       running[id] = new(name, id, Time.now.to_i, Process.pid, parent)
     end
 
-    def self.message_for(*args)
-      event = Event.new(*args)
+    def self.message_for(event)
       transaction = running[event.transaction_id]
       transaction.message_for(event)
     end
