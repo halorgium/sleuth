@@ -1,7 +1,7 @@
 source "http://gemcutter.org"
 
 gem "halorgium-activesupport",  '=3.0.pre', :require_as => nil
-gem "rack-client",              '=0.2.0',   :require_as => 'rack/client'
+gem "rack-client",              '~>0.2.1',  :require_as => nil
 
 only :test do
   gem "mongrel"

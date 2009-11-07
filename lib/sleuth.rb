@@ -1,5 +1,6 @@
 require 'rack/client'
 
+require 'active_support'
 require 'active_support/core_ext/module/delegation'
 require 'active_support/core_ext/class/attribute_accessors'
 require 'active_support/notifications'
