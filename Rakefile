@@ -2,7 +2,7 @@ require 'rake/gempackagetask'
 
 spec = Gem::Specification.new do |s|
   s.name = "sleuth"
-  s.version = "0.2.3.pre"
+  s.version = "0.2.4.pre"
   s.summary = "Transaction logging middleware"
   s.author = "Tim Carey-Smith"
   s.email = "dev@spork.in"
