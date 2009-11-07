@@ -10,8 +10,6 @@ require 'time'
 module Sleuth
   TRANSACTION_HEADER = "X_SLEUTH_TRANSACTION"
 
-  class OutsideTransaction < StandardError; end
-
   class << self
     delegate :head, :get, :post, :put, :delete, :to => :http
 
@@ -27,7 +25,7 @@ module Sleuth
           yield
         end
       else
-        raise OutsideTransaction, "You are outside of a transaction"
+        yield
       end
     end
 
@@ -63,7 +61,7 @@ module Sleuth
     def watch(log_path)
       logger = ActiveSupport::BufferedLogger.new(log_path)
       subscribe do |event|
-        logger.debug(Transaction.message_for(event))
+        logger.debug(event.message)
       end
     end
 

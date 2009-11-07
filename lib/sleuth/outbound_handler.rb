@@ -7,7 +7,9 @@ module Sleuth
     def call(env)
       request = Rack::Request.new(env)
       Sleuth.instrument("Sending #{request.request_method} #{request.url}") do
-        env["HTTP_#{TRANSACTION_HEADER}"] = Sleuth.current_transaction.full_name
+        if Sleuth.inside_transaction?
+          env["HTTP_#{TRANSACTION_HEADER}"] = Sleuth.current_transaction.full_name
+        end
         @app.call(env)
       end
     end
