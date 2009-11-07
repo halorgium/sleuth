@@ -76,4 +76,5 @@ end
 current_dir = File.expand_path(File.dirname(__FILE__) + '/sleuth')
 require current_dir + '/middleware'
 require current_dir + '/outbound_handler'
+require current_dir + '/event'
 require current_dir + '/transaction'
